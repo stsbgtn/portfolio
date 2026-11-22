@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Калькулятор</title>
+    <style>
+        /* Основные настройки страницы */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #151820;
+            font-family: Arial, sans-serif;
+            padding: 16px;
+        }
+        /* Контейнер калькулятора */
+        .calculator {
+            width: 100%; max-width: 380px; background: #222733;
+            padding: 24px; border-radius: 24px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+        /* Дисплей */
+        .display {
+            width: 100%; min-height: 90px; background: #171c25; color: #fff;
+            border-radius: 14px; margin-bottom: 20px; padding: 20px 14px;
+            display: flex; align-items: center; justify-content: flex-end;
+            text-align: right; font-size: 44px; font-weight: 300;
+            overflow: hidden; overflow-wrap: anywhere;
+        }
+        /* Сетка кнопок */
+        .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        /* Общий стиль кнопок */
+        button {
+            min-width: 0; min-height: 68px; border: none; border-radius: 14px;
+            background: #343c4b; color: #fff; font-size: 25px; cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active { transform: scale(0.95); background: #465166; }
+        /* Кнопки операций */
+        button.operator { background: #386baf; }
+        button.operator:active { background: #508bd5; }
+        /* Кнопки сброса и удаления */
+        button.action { background: #555d6d; }
+        /* Кнопка результата */
+        button.equals { background: #21966c; }
+        button.equals:active { background: #2db886; }
+        /* Кнопка нуля занимает две ячейки */
+        button.zero { grid-column: span 2; }
+        /* Адаптация для узких экранов */
+        @media (max-width: 400px) {
+            .calculator { padding: 16px; }
+            .buttons { gap: 8px; }
+            button { min-height: 65px; font-size: 23px; }
+            .display { min-height: 80px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="calculator">
+        <!-- Экран калькулятора -->
+        <div class="display" id="display" aria-live="polite">0</div>
+        <!-- Кнопки калькулятора -->
+        <div class="buttons">
+            <button class="action" data-action="clear">C</button>
+            <button class="action" data-action="backspace">⌫</button>
+            <button class="operator" data-operator="/">÷</button>
+            <button class="operator" data-operator="*">×</button>
+            <button data-number="7">7</button><button data-number="8">8</button>
+            <button data-number="9">9</button><button class="operator" data-operator="-">−</button>
+            <button data-number="4">4</button><button data-number="5">5</button>
+            <button data-number="6">6</button><button class="operator" data-operator="+">+</button>
+            <button data-number="1">1</button><button data-number="2">2</button>
+            <button data-number="3">3</button><button class="operator" data-action="equals">=</button>
+            <button class="zero" data-number="0">0</button>
+            <button data-number=".">.</button><button class="equals" data-action="equals">=</button>
+        </div>
+    </main>
+    <script>
+        // Получаем дисплей
+        const display = document.getElementById('display');
+        // Переменные для хранения состояния калькулятора
+        let currentInput = '0';
+        let previousValue = null;
+        let currentOperator = null;
+        let waitingForNumber = false;
+        let errorShown = false;
+
+        // Обновляем число на дисплее и уменьшаем шрифт для длинных значений
+        function updateDisplay() {
+            display.textContent = currentInput;
+            const fontSize = Math.max(16, 44 - Math.max(0, currentInput.length - 9) * 2);
+            display.style.fontSize = fontSize + 'px';
+        }
+
+        // Ввод цифры или десятичной точки
+        function inputNumber(number) {
+            if (errorShown) clearCalculator();
+            if (waitingForNumber) {
+                currentInput = number === '.' ? '0.' : number;
+                waitingForNumber = false;
+            } else if (number === '.') {
+                if (currentInput.includes('.')) return;
+                currentInput += '.';
+            } else if (currentInput === '0') {
+                currentInput = number;
+            } else {
+                currentInput += number;
+            }
+            updateDisplay();
+        }
+
+        // Выбираем математическую операцию
+        function chooseOperator(operator) {
+            if (errorShown) return;
+            const inputValue = parseFloat(currentInput);
+            if (currentOperator && !waitingForNumber) calculate();
+            else previousValue = inputValue;
+            currentOperator = operator;
+            waitingForNumber = true;
+        }
+
+        // Выполняем вычисление
+        function calculate() {
+            if (currentOperator === null || previousValue === null) return;
+            const currentValue = parseFloat(currentInput);
+            let result;
+            switch (currentOperator) {
+                case '+': result = previousValue + currentValue; break;
+                case '-': result = previousValue - currentValue; break;
+                case '*': result = previousValue * currentValue; break;
+                case '/':
+                    if (currentValue === 0) { showError('Нельзя делить на 0'); return; }
+                    result = previousValue / currentValue;
+                    break;
+            }
+            // Проверяем результат и убираем лишние знаки
+            if (!Number.isFinite(result)) { showError('Ошибка вычисления'); return; }
+            currentInput = String(parseFloat(result.toPrecision(12)));
+            previousValue = null;
+            currentOperator = null;
+            waitingForNumber = true;
+            updateDisplay();
+        }
+
+        // Показываем сообщение об ошибке
+        function showError(message) {
+            currentInput = message;
+            previousValue = null;
+            currentOperator = null;
+            waitingForNumber = true;
+            errorShown = true;
+            updateDisplay();
+        }
+
+        // Полностью очищаем калькулятор
+        function clearCalculator() {
+            currentInput = '0';
+            previousValue = null;
+            currentOperator = null;
+            waitingForNumber = false;
+            errorShown = false;
+            updateDisplay();
+        }
+
+        // Удаляем последний символ
+        function backspace() {
+            if (errorShown) { clearCalculator(); return; }
+            if (waitingForNumber) return;
+            currentInput = currentInput.length > 1 ? currentInput.slice(0, -1) : '0';
+            if (currentInput === '-') currentInput = '0';
+            updateDisplay();
+        }
+
+        // Обрабатываем нажатия кнопок мышью или пальцем
+        document.querySelector('.buttons').addEventListener('click', function(event) {
+            const button = event.target.closest('button');
+            if (!button) return;
+            if (button.dataset.number !== undefined) inputNumber(button.dataset.number);
+            if (button.dataset.operator) chooseOperator(button.dataset.operator);
+            if (button.dataset.action === 'equals') calculate();
+            if (button.dataset.action === 'clear') clearCalculator();
+            if (button.dataset.action === 'backspace') backspace();
+        });
+
+        // Управление калькулятором с клавиатуры
+        document.addEventListener('keydown', function(event) {
+            const key = event.key;
+            if (/^[0-9.]$/.test(key)) inputNumber(key);
+            else if (['+', '-', '*', '/'].includes(key)) chooseOperator(key);
+            else if (key === 'Enter' || key === '=') { event.preventDefault(); calculate(); }
+            else if (key === 'Backspace') backspace();
+            else if (key === 'Escape') clearCalculator();
+        });
+    </script>
+</body>
+</html>
